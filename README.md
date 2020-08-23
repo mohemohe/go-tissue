@@ -1,28 +1,60 @@
 go-tissue
 ====
 
-## import
+## checkin (Scraping)
 
 ```go
-import tissue github.com/mohemohe/go-tissue
+package example
+
+import (
+    tissue "github.com/mohemohe/go-tissue"
+    "log"
+    "time"
+)
+
+func main() {
+    client, _ := tissue.NewClient(&tissue.ClientOption{
+        Email:    "user@example.com",
+        Password: "dolphin",
+    })
+    id, _ := client.CheckIn(&tissue.CheckInOption{
+        DateTime:     time.Now(),
+        Tags:         []string{"test", "shibafu528"},
+        Link:         "https://example.com",
+        Note:         "golangでチェックインしたい人生だった",
+        Private:      true,
+        TooSensitive: false,
+    })
+    log.Println("checkin id:", id)
+}
 ```
 
-## checkin
+## checkin (WebHook)
 
 ```go
-client, _ := tissue.NewClient(&tissue.ClientOption{
-    Email:    "user@example.com",
-    Password: "dolphin",
-})
-id, _ := client.CheckIn(&tissue.CheckInOption{
-    DateTime:     time.Now(),
-    Tags:         []string{"test", "shibafu528"},
-    Link:         "https://example.com",
-    Note:         "golangでチェックインしたい人生だった",
-    Private:      true,
-    TooSensitive: false,
-})
-log.Println("checkin id:", id)
+package example
+
+import (
+    "context"
+    tissue "github.com/mohemohe/go-tissue/api"
+    "time"
+    "log"
+)
+
+func main() {
+    client, _ := tissue.NewClient(&tissue.ClientOption{
+        WebhookID: "dolphin",
+    })
+    result, _ := client.CheckIn(context.TODO(), &tissue.CheckInOption{
+        DateTime:     time.Now(),
+        Tags:         []string{"test", "shibafu528"},
+        Link:         "https://example.com",
+        Note:         "golangでチェックインしたい人生だった",
+        Private:      true,
+        TooSensitive: false,
+    })
+    log.Println("checkin id:", result.ID)
+}
 ```
 
 ## 免責
