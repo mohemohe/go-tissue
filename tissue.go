@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/antchfx/htmlquery"
+	"github.com/PuerkitoBio/goquery"
 )
 
 type (
@@ -39,6 +39,22 @@ type (
 	ListTagsResult struct {
 		Name  string
 		Count int
+	}
+	SearchOption struct {
+		Keyword string
+		Page    int
+	}
+	User struct {
+		ID          string
+		DisplayName string
+	}
+	CheckInResult struct {
+		ID       int
+		DateTime time.Time
+		Tags     []string
+		Link     string
+		Note     string
+		User     User
 	}
 )
 
@@ -112,16 +128,15 @@ func (this *Client) fetchToken(spath string, client *http.Client) (string, error
 	if err != nil {
 		return "", err
 	}
-	defer res.Body.Close()
-	doc, err := htmlquery.Parse(res.Body)
+	doc, err := goquery.NewDocumentFromResponse(res)
 	if err != nil {
 		return "", err
 	}
-	input := htmlquery.FindOne(doc, "//input[@name='_token']/@value")
-	if input == nil {
+	token := doc.Find("form input[name='_token']").First().AttrOr("value", "")
+	if token == "" {
 		return "", errors.New("_token not found")
 	}
-	return input.FirstChild.Data, nil
+	return token, nil
 }
 
 func (this *Client) CheckIn(option *CheckInOption) (checkInID int64, err error) {
@@ -189,39 +204,94 @@ func (this *Client) ListTags(option *ListTagsOption) (result []ListTagsResult, e
 	if err != nil {
 		return nil, err
 	}
+	if res.StatusCode != http.StatusOK {
+		return nil, errors.New("something wrong: " + res.Status)
+	}
+
+	doc, err := goquery.NewDocumentFromResponse(res)
+	if err != nil {
+		return nil, err
+	}
+	tagNodes := doc.Find(".tags a")
+	result = make([]ListTagsResult, tagNodes.Length())
+	tagNodes.Each(func(i int, s *goquery.Selection) {
+		result[i].Name = s.Find(".tag-name").Text()
+
+		countText := s.Find(".checkins-count").Text()
+		if strings.HasPrefix(countText, "(") {
+			countText = countText[1:]
+		}
+		if strings.HasSuffix(countText, ")") {
+			countText = countText[:len(countText)-1]
+		}
+		count, err := strconv.Atoi(countText)
+		if err != nil {
+			count = -1
+		}
+		result[i].Count = count
+	})
+
+	return result, nil
+}
+
+func (this *Client) Search(option *SearchOption) (result []CheckInResult, err error) {
+	spath := "/search/checkin" + "?q=" + url.QueryEscape(option.Keyword)
+
+	client, err := this.httpClient()
+	if err != nil {
+		return nil, err
+	}
+
+	res, err := this.httpRequest(context.TODO(), client, http.MethodGet, spath, nil)
+	if err != nil {
+		return nil, err
+	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
 		return nil, errors.New("something wrong: " + res.Status)
 	}
 
-	doc, err := htmlquery.Parse(res.Body)
+	doc, err := goquery.NewDocumentFromResponse(res)
 	if err != nil {
 		return nil, err
 	}
-	tagNameNodes, err := htmlquery.QueryAll(doc, "//*[@class=\"tag-name\"]")
+	checkInNodes := doc.Find(".list-group-item")
 	if err != nil {
 		return nil, err
 	}
 
-	result = make([]ListTagsResult, len(tagNameNodes))
-	for i, tagNameNode := range tagNameNodes {
-		countNode := htmlquery.FindOne(tagNameNode.Parent, "//*[@class=\"checkins-count\"]")
-		countData := countNode.FirstChild.Data
-		if strings.HasPrefix(countData, "(") {
-			countData = countData[1:]
-		}
-		if strings.HasSuffix(countData, ")") {
-			countData = countData[:len(countData)-1]
-		}
-		count, err := strconv.Atoi(countData)
+	result = make([]CheckInResult, checkInNodes.Length())
+	checkInNodes.Each(func(i int, s *goquery.Selection) {
+		dateTimeNode := s.Find("a[href*='/checkin/']").First()
+		checkInID, err := strconv.Atoi(strings.TrimSpace(strings.TrimPrefix(dateTimeNode.AttrOr("href", "-1"), this.option.BaseURL+"/checkin/")))
 		if err != nil {
-			count = -1
+			checkInID = -1
 		}
-		result[i] = ListTagsResult{
-			Name:  tagNameNode.FirstChild.Data,
-			Count: count,
+		result[i].ID = checkInID
+
+		dateTime, err := time.Parse("2006/01/02 15:04", strings.TrimSpace(dateTimeNode.Text()))
+		if err != nil {
+			dateTime = time.Unix(0, 0)
 		}
-	}
+		result[i].DateTime = dateTime
+
+		userNode := s.Find("a[href*='/user/']").First()
+		result[i].User.DisplayName = strings.TrimSpace(userNode.Text())
+		result[i].User.ID = strings.TrimSpace(strings.TrimPrefix(userNode.AttrOr("href", "-1"), this.option.BaseURL+"/user/"))
+
+		tagNodes := s.Find(".tis-checkin-tags")
+		tagNodes.Each(func(j int, t *goquery.Selection) {
+			badgeNodes := t.Find(".badge")
+			result[i].Tags = make([]string, badgeNodes.Length())
+			badgeNodes.Each(func(k int, u *goquery.Selection) {
+				result[i].Tags[k] = strings.TrimSpace(u.Text())
+			})
+		})
+
+		result[i].Link = s.Find(".oi-link-intact + a").First().AttrOr("href", "")
+
+		result[i].Note = strings.TrimSpace(s.Find(".tis-checkin-tags + div > p").First().Text())
+	})
 
 	return result, nil
 }
