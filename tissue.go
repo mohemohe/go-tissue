@@ -49,12 +49,15 @@ type (
 		DisplayName string
 	}
 	CheckInResult struct {
-		ID       int
+		ID       int64
 		DateTime time.Time
 		Tags     []string
 		Link     string
 		Note     string
 		User     User
+	}
+	TimelineOption struct {
+		Page int
 	}
 )
 
@@ -234,36 +237,11 @@ func (this *Client) ListTags(option *ListTagsOption) (result []ListTagsResult, e
 	return result, nil
 }
 
-func (this *Client) Search(option *SearchOption) (result []CheckInResult, err error) {
-	spath := "/search/checkin" + "?q=" + url.QueryEscape(option.Keyword)
-
-	client, err := this.httpClient()
-	if err != nil {
-		return nil, err
-	}
-
-	res, err := this.httpRequest(context.TODO(), client, http.MethodGet, spath, nil)
-	if err != nil {
-		return nil, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return nil, errors.New("something wrong: " + res.Status)
-	}
-
-	doc, err := goquery.NewDocumentFromResponse(res)
-	if err != nil {
-		return nil, err
-	}
-	checkInNodes := doc.Find(".list-group-item")
-	if err != nil {
-		return nil, err
-	}
-
-	result = make([]CheckInResult, checkInNodes.Length())
-	checkInNodes.Each(func(i int, s *goquery.Selection) {
+func (this *Client) parseChackIn(nodes *goquery.Selection) (result []CheckInResult, err error) {
+	result = make([]CheckInResult, nodes.Length())
+	nodes.Each(func(i int, s *goquery.Selection) {
 		dateTimeNode := s.Find("a[href*='/checkin/']").First()
-		checkInID, err := strconv.Atoi(strings.TrimSpace(strings.TrimPrefix(dateTimeNode.AttrOr("href", "-1"), this.option.BaseURL+"/checkin/")))
+		checkInID, err := strconv.ParseInt(strings.TrimSpace(strings.TrimPrefix(dateTimeNode.AttrOr("href", "-1"), this.option.BaseURL+"/checkin/")), 10, 64)
 		if err != nil {
 			checkInID = -1
 		}
@@ -294,4 +272,60 @@ func (this *Client) Search(option *SearchOption) (result []CheckInResult, err er
 	})
 
 	return result, nil
+}
+
+func (this *Client) Search(option *SearchOption) (result []CheckInResult, err error) {
+	spath := "/search/checkin" + "?q=" + url.QueryEscape(option.Keyword)
+
+	client, err := this.httpClient()
+	if err != nil {
+		return nil, err
+	}
+
+	res, err := this.httpRequest(context.TODO(), client, http.MethodGet, spath, nil)
+	if err != nil {
+		return nil, err
+	}
+	if res.StatusCode != http.StatusOK {
+		return nil, errors.New("something wrong: " + res.Status)
+	}
+
+	doc, err := goquery.NewDocumentFromResponse(res)
+	if err != nil {
+		return nil, err
+	}
+
+	checkInNodes := doc.Find(".list-group-item")
+	if err != nil {
+		return nil, err
+	}
+	return this.parseChackIn(checkInNodes)
+}
+
+func (this *Client) PublicTimeline(option *TimelineOption) (result []CheckInResult, err error) {
+	spath := "/timeline/public" + "?page=" + strconv.Itoa(option.Page)
+
+	client, err := this.httpClient()
+	if err != nil {
+		return nil, err
+	}
+
+	res, err := this.httpRequest(context.TODO(), client, http.MethodGet, spath, nil)
+	if err != nil {
+		return nil, err
+	}
+	if res.StatusCode != http.StatusOK {
+		return nil, errors.New("something wrong: " + res.Status)
+	}
+
+	doc, err := goquery.NewDocumentFromResponse(res)
+	if err != nil {
+		return nil, err
+	}
+
+	checkInNodes := doc.Find(".container-fluid > .row > div[class*='col-']")
+	if err != nil {
+		return nil, err
+	}
+	return this.parseChackIn(checkInNodes)
 }

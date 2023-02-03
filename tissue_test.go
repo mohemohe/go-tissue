@@ -32,6 +32,8 @@ func TestClient_CheckIn(t *testing.T) {
 	if checkInID < 0 {
 		t.Error("could not parse checkIn ID")
 	}
+
+	t.Log("checkin ID:", checkInID)
 }
 
 func TestClient_ListTags(t *testing.T) {
@@ -57,6 +59,10 @@ func TestClient_ListTags(t *testing.T) {
 	}
 	if len(result) > 0 && result[0].Count == -1 {
 		t.Error("could not parse checkin count")
+	}
+
+	for _, tag := range result {
+		t.Log(tag)
 	}
 }
 
@@ -95,5 +101,46 @@ func TestClient_Search(t *testing.T) {
 		if checkIn.User.DisplayName == "" {
 			t.Error("could not parse checkin user name")
 		}
+
+		t.Log(checkIn)
+	}
+}
+
+func TestClient_PublicTimeline(t *testing.T) {
+	client, err := NewClient(&ClientOption{
+		Email:    os.Getenv("TISSUE_EMAIL"),
+		Password: os.Getenv("TISSUE_PASSWORD"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if client == nil {
+		t.Fatal("nil client")
+	}
+
+	result, err := client.PublicTimeline(&TimelineOption{
+		Page: 1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result == nil {
+		t.Error("could not parse search page")
+	}
+	for _, checkIn := range result {
+		if checkIn.ID == -1 {
+			t.Error("could not parse checkin ID")
+		}
+		if checkIn.DateTime == time.Unix(0, 0) {
+			t.Error("could not parse checkin datetime")
+		}
+		if checkIn.User.ID == "" {
+			t.Error("could not parse checkin user id")
+		}
+		if checkIn.User.DisplayName == "" {
+			t.Error("could not parse checkin user name")
+		}
+
+		t.Log(checkIn)
 	}
 }
