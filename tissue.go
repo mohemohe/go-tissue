@@ -16,8 +16,9 @@ import (
 
 type (
 	Client struct {
-		option *ClientOption
-		cookie *cookiejar.Jar
+		option   *ClientOption
+		cookie   *cookiejar.Jar
+		loggedIn bool
 	}
 	ClientOption struct {
 		BaseURL  string
@@ -32,6 +33,13 @@ type (
 		Private      bool
 		TooSensitive bool
 	}
+	ListTagsOption struct {
+		Page int
+	}
+	ListTagsResult struct {
+		Name  string
+		Count int
+	}
 )
 
 func NewClient(option *ClientOption) (*Client, error) {
@@ -45,8 +53,9 @@ func NewClient(option *ClientOption) (*Client, error) {
 	}
 
 	return &Client{
-		option: option,
-		cookie: cookie,
+		option:   option,
+		cookie:   cookie,
+		loggedIn: false,
 	}, nil
 }
 
@@ -54,6 +63,9 @@ func (this *Client) httpClient() (*http.Client, error) {
 	loginPath := "/login"
 	client := &http.Client{
 		Jar: this.cookie,
+	}
+	if this.loggedIn {
+		return client, nil
 	}
 	token, err := this.fetchToken(loginPath, client)
 
@@ -71,7 +83,7 @@ func (this *Client) httpClient() (*http.Client, error) {
 	if res.StatusCode != 200 {
 		return nil, errors.New("unauthorized")
 	}
-
+	this.loggedIn = true
 	return client, nil
 }
 
@@ -80,8 +92,8 @@ func (this *Client) httpRequest(ctx context.Context, client *http.Client, method
 	if err != nil {
 		return nil, err
 	}
-	u.Path = spath
-	req, err := http.NewRequest(method, u.String(), body)
+	endpoint := this.option.BaseURL + spath
+	req, err := http.NewRequest(method, endpoint, body)
 	if err != nil {
 		return nil, err
 	}
@@ -113,14 +125,14 @@ func (this *Client) fetchToken(spath string, client *http.Client) (string, error
 }
 
 func (this *Client) CheckIn(option *CheckInOption) (checkInID int64, err error) {
-	checkInPath := "/checkin"
+	spath := "/checkin"
 
 	client, err := this.httpClient()
 	if err != nil {
 		return -1, err
 	}
 
-	token, err := this.fetchToken(checkInPath, client)
+	token, err := this.fetchToken(spath, client)
 	if err != nil {
 		return -1, err
 	}
@@ -148,7 +160,7 @@ func (this *Client) CheckIn(option *CheckInOption) (checkInID int64, err error) 
 		postForm["is_too_sensitive"] = []string{"on"}
 	}
 
-	res, err := this.httpRequest(context.TODO(), client, http.MethodPost, checkInPath, strings.NewReader(postForm.Encode()))
+	res, err := this.httpRequest(context.TODO(), client, http.MethodPost, spath, strings.NewReader(postForm.Encode()))
 	if err != nil {
 		return -1, err
 	}
@@ -163,4 +175,53 @@ func (this *Client) CheckIn(option *CheckInOption) (checkInID int64, err error) 
 	}
 	path := strings.Split(location, "/")
 	return strconv.ParseInt(path[len(path)-1], 10, 64)
+}
+
+func (this *Client) ListTags(option *ListTagsOption) (result []ListTagsResult, err error) {
+	spath := "/tag" + "?page=" + strconv.Itoa(option.Page)
+
+	client, err := this.httpClient()
+	if err != nil {
+		return nil, err
+	}
+
+	res, err := this.httpRequest(context.TODO(), client, http.MethodGet, spath, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, errors.New("something wrong: " + res.Status)
+	}
+
+	doc, err := htmlquery.Parse(res.Body)
+	if err != nil {
+		return nil, err
+	}
+	tagNameNodes, err := htmlquery.QueryAll(doc, "//*[@class=\"tag-name\"]")
+	if err != nil {
+		return nil, err
+	}
+
+	result = make([]ListTagsResult, len(tagNameNodes))
+	for i, tagNameNode := range tagNameNodes {
+		countNode := htmlquery.FindOne(tagNameNode.Parent, "//*[@class=\"checkins-count\"]")
+		countData := countNode.FirstChild.Data
+		if strings.HasPrefix(countData, "(") {
+			countData = countData[1:]
+		}
+		if strings.HasSuffix(countData, ")") {
+			countData = countData[:len(countData)-1]
+		}
+		count, err := strconv.Atoi(countData)
+		if err != nil {
+			count = -1
+		}
+		result[i] = ListTagsResult{
+			Name:  tagNameNode.FirstChild.Data,
+			Count: count,
+		}
+	}
+
+	return result, nil
 }

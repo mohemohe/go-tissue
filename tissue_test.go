@@ -33,3 +33,29 @@ func TestClient_CheckIn(t *testing.T) {
 		t.Error("could not parse checkIn ID")
 	}
 }
+
+func TestClient_ListTags(t *testing.T) {
+	client, err := NewClient(&ClientOption{
+		Email:    os.Getenv("TISSUE_EMAIL"),
+		Password: os.Getenv("TISSUE_PASSWORD"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if client == nil {
+		t.Fatal("nil client")
+	}
+
+	result, err := client.ListTags(&ListTagsOption{
+		Page: 1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result == nil {
+		t.Error("could not parse tags page")
+	}
+	if len(result) > 0 && result[0].Count == -1 {
+		t.Error("could not parse checkin count")
+	}
+}
