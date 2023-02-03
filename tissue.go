@@ -1,14 +1,17 @@
 package go_tissue
 
 import (
+	"context"
 	"errors"
-	"github.com/antchfx/htmlquery"
+	"io"
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/antchfx/htmlquery"
 )
 
 type (
@@ -48,18 +51,19 @@ func NewClient(option *ClientOption) (*Client, error) {
 }
 
 func (this *Client) httpClient() (*http.Client, error) {
-	loginURL := this.option.BaseURL + "/login"
+	loginPath := "/login"
 	client := &http.Client{
 		Jar: this.cookie,
 	}
-	token, err := this.fetchToken(loginURL, client)
+	token, err := this.fetchToken(loginPath, client)
 
 	postForm := url.Values{
 		"_token":   []string{token},
 		"email":    []string{this.option.Email},
 		"password": []string{this.option.Password},
 	}
-	res, err := client.PostForm(loginURL, postForm)
+
+	res, err := this.httpRequest(context.TODO(), client, http.MethodPost, loginPath, strings.NewReader(postForm.Encode()))
 	if err != nil {
 		return nil, err
 	}
@@ -71,8 +75,28 @@ func (this *Client) httpClient() (*http.Client, error) {
 	return client, nil
 }
 
-func (this *Client) fetchToken(url string, client *http.Client) (string, error) {
-	res, err := client.Get(url)
+func (this *Client) httpRequest(ctx context.Context, client *http.Client, method string, spath string, body io.Reader) (*http.Response, error) {
+	u, err := url.Parse(this.option.BaseURL)
+	if err != nil {
+		return nil, err
+	}
+	u.Path = spath
+	req, err := http.NewRequest(method, u.String(), body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if (method != http.MethodGet) && (method != http.MethodHead) {
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	}
+	req.Header.Set("User-Agent", "go-tissue")
+	req.Header.Set("Host", u.Host)
+
+	return client.Do(req)
+}
+
+func (this *Client) fetchToken(spath string, client *http.Client) (string, error) {
+	res, err := this.httpRequest(context.TODO(), client, http.MethodGet, spath, nil)
 	if err != nil {
 		return "", err
 	}
@@ -89,14 +113,14 @@ func (this *Client) fetchToken(url string, client *http.Client) (string, error) 
 }
 
 func (this *Client) CheckIn(option *CheckInOption) (checkInID int64, err error) {
-	checkInURL := this.option.BaseURL + "/checkin"
+	checkInPath := "/checkin"
 
 	client, err := this.httpClient()
 	if err != nil {
 		return -1, err
 	}
 
-	token, err := this.fetchToken(checkInURL, client)
+	token, err := this.fetchToken(checkInPath, client)
 	if err != nil {
 		return -1, err
 	}
@@ -124,13 +148,13 @@ func (this *Client) CheckIn(option *CheckInOption) (checkInID int64, err error) 
 		postForm["is_too_sensitive"] = []string{"on"}
 	}
 
-	res, err := client.PostForm(checkInURL, postForm)
+	res, err := this.httpRequest(context.TODO(), client, http.MethodPost, checkInPath, strings.NewReader(postForm.Encode()))
 	if err != nil {
 		return -1, err
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusFound {
-		return -1, errors.New("something wrong")
+		return -1, errors.New("something wrong: " + res.Status)
 	}
 
 	location := res.Header.Get("location")
