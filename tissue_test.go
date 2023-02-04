@@ -4,10 +4,18 @@ import (
 	"os"
 	"testing"
 	"time"
+
+	"github.com/joho/godotenv"
 )
 
+func TestMain(m *testing.M) {
+	_ = godotenv.Load()
+
+	os.Exit(m.Run())
+}
+
 func TestClient_CheckIn(t *testing.T) {
-	if os.Getenv("TISSUE_SKIP_CHECKIN_TEST") != "" {
+	if os.Getenv("TISSUE_SKIP_CHECKIN_TEST") == "1" {
 		t.Skip("skip checkin test")
 	}
 
@@ -207,4 +215,140 @@ func TestClient_GetStatus(t *testing.T) {
 	}
 
 	t.Log(status)
+}
+
+var createdCollection Collection
+
+func TestClient_CreateCollection(t *testing.T) {
+	defer time.Sleep(2 * time.Second)
+
+	client, err := NewClient(&ClientOption{
+		Email:    os.Getenv("TISSUE_EMAIL"),
+		Password: os.Getenv("TISSUE_PASSWORD"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if client == nil {
+		t.Fatal("nil client")
+	}
+
+	createOption := &CreateCollectionOption{
+		Title:   "test collection",
+		Private: true,
+	}
+	collection, err := client.CreateCollection(createOption)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if collection.ID <= 0 {
+		t.Error("invalid collection ID")
+	}
+	if collection.Title != createOption.Title {
+		t.Error("invalid collection title")
+	}
+	if collection.Private != createOption.Private {
+		t.Error("invalid collection visibility")
+	}
+	if collection.UserID == "" {
+		t.Error("invalid collection user ID")
+	}
+
+	createdCollection = collection
+
+	t.Log(collection)
+}
+
+func TestClient_EditCollection(t *testing.T) {
+	defer time.Sleep(2 * time.Second)
+
+	client, err := NewClient(&ClientOption{
+		Email:    os.Getenv("TISSUE_EMAIL"),
+		Password: os.Getenv("TISSUE_PASSWORD"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if client == nil {
+		t.Fatal("nil client")
+	}
+
+	editOption := &EditCollectionOption{
+		ID:      createdCollection.ID,
+		Title:   "test collection 2",
+		Private: true,
+	}
+	collection, err := client.EditCollection(editOption)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if collection.ID != createdCollection.ID {
+		t.Error("invalid collection ID")
+	}
+	if collection.Title != editOption.Title {
+		t.Error("invalid collection title")
+	}
+	if collection.Private != editOption.Private {
+		t.Error("invalid collection visibility")
+	}
+	if collection.UserID != createdCollection.UserID {
+		t.Error("invalid collection user ID")
+	}
+
+	t.Log(collection)
+}
+
+func TestClient_ListCollection(t *testing.T) {
+	defer time.Sleep(2 * time.Second)
+
+	client, err := NewClient(&ClientOption{
+		Email:    os.Getenv("TISSUE_EMAIL"),
+		Password: os.Getenv("TISSUE_PASSWORD"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if client == nil {
+		t.Fatal("nil client")
+	}
+
+	collections, err := client.ListCollection()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(collections) == 0 {
+		return
+	}
+	for _, collection := range collections {
+		if collection.ID <= 0 {
+			t.Error("invalid collection ID")
+		}
+		if collection.Title == "" {
+			t.Error("invalid collection title")
+		}
+		if collection.UserID == "" {
+			t.Error("invalid collection user ID")
+		}
+
+		t.Log(collection)
+	}
+}
+
+func TestClient_DeleteCollection(t *testing.T) {
+	defer time.Sleep(2 * time.Second)
+
+	client, err := NewClient(&ClientOption{
+		Email:    os.Getenv("TISSUE_EMAIL"),
+		Password: os.Getenv("TISSUE_PASSWORD"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if client == nil {
+		t.Fatal("nil client")
+	}
+
+	if err := client.DeleteCollection(createdCollection.ID); err != nil {
+		t.Fatal(err)
+	}
 }

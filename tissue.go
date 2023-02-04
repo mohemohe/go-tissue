@@ -1,7 +1,9 @@
 package go_tissue
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
@@ -76,6 +78,21 @@ type (
 		Session  Session
 		Overview Overview
 	}
+	CreateCollectionOption struct {
+		Title   string `json:"title"`
+		Private bool   `json:"is_private"`
+	}
+	EditCollectionOption struct {
+		ID      int64  `json:"-"`
+		Title   string `json:"title"`
+		Private bool   `json:"is_private"`
+	}
+	Collection struct {
+		ID      int64  `json:"id"`
+		Private bool   `json:"is_private"`
+		Title   string `json:"title"`
+		UserID  string `json:"user_name"`
+	}
 )
 
 func NewClient(option *ClientOption) (*Client, error) {
@@ -123,7 +140,7 @@ func (this *Client) httpClient() (*http.Client, error) {
 	return client, nil
 }
 
-func (this *Client) httpRequest(ctx context.Context, client *http.Client, method string, spath string, body io.Reader) (*http.Response, error) {
+func (this *Client) initHttpRequest(ctx context.Context, client *http.Client, method string, spath string, body io.Reader) (*http.Request, error) {
 	u, err := url.Parse(this.option.BaseURL)
 	if err != nil {
 		return nil, err
@@ -134,12 +151,39 @@ func (this *Client) httpRequest(ctx context.Context, client *http.Client, method
 		return nil, err
 	}
 	req = req.WithContext(ctx)
-	if (method != http.MethodGet) && (method != http.MethodHead) {
-		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	}
 	req.Header.Set("User-Agent", "go-tissue")
 	req.Header.Set("Host", u.Host)
 
+	return req, nil
+}
+
+func (this *Client) httpRequest(ctx context.Context, client *http.Client, method string, spath string, body io.Reader) (*http.Response, error) {
+	req, err := this.initHttpRequest(ctx, client, method, spath, body)
+	if err != nil {
+		return nil, err
+	}
+
+	if (method != http.MethodGet) && (method != http.MethodHead) {
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	}
+	return client.Do(req)
+}
+
+func (this *Client) jsonRequest(ctx context.Context, client *http.Client, method string, spath string, body io.Reader) (*http.Response, error) {
+	req, err := this.initHttpRequest(ctx, client, method, spath, body)
+	if err != nil {
+		return nil, err
+	}
+
+	if (method != http.MethodGet) && (method != http.MethodHead) {
+		req.Header.Set("Content-Type", "application/json")
+
+		csrfToken, err := this.fetchToken("/", client)
+		if err != nil {
+			return nil, err
+		}
+		req.Header.Set("x-csrf-token", csrfToken)
+	}
 	return client.Do(req)
 }
 
@@ -439,4 +483,124 @@ func (this *Client) GetStatus() (result Status, err error) {
 	})
 
 	return result, nil
+}
+
+func (this *Client) CreateCollection(option *CreateCollectionOption) (result Collection, err error) {
+	spath := "/api/collections"
+
+	client, err := this.httpClient()
+	if err != nil {
+		return result, err
+	}
+
+	payload, err := json.Marshal(option)
+	if err != nil {
+		return result, err
+	}
+
+	res, err := this.jsonRequest(context.TODO(), client, http.MethodPost, spath, bytes.NewReader(payload))
+	if err != nil {
+		return result, err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusCreated {
+		return result, errors.New("something wrong: " + res.Status)
+	}
+
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		return result, err
+	}
+
+	result = Collection{}
+	if err := json.Unmarshal(body, &result); err != nil {
+		return result, err
+	}
+	return result, nil
+}
+
+func (this *Client) EditCollection(option *EditCollectionOption) (result Collection, err error) {
+	spath := "/api/collections" + "/" + strconv.FormatInt(option.ID, 10)
+
+	client, err := this.httpClient()
+	if err != nil {
+		return result, err
+	}
+
+	payload, err := json.Marshal(option)
+	if err != nil {
+		return result, err
+	}
+
+	res, err := this.jsonRequest(context.TODO(), client, http.MethodPut, spath, bytes.NewReader(payload))
+	if err != nil {
+		return result, err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return result, errors.New("something wrong: " + res.Status)
+	}
+
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		return result, err
+	}
+
+	result = Collection{}
+	if err := json.Unmarshal(body, &result); err != nil {
+		return result, err
+	}
+	return result, nil
+}
+
+func (this *Client) ListCollection() (result []Collection, err error) {
+	spath := "/api/collections"
+
+	client, err := this.httpClient()
+	if err != nil {
+		return result, err
+	}
+
+	res, err := this.jsonRequest(context.TODO(), client, http.MethodGet, spath, nil)
+	if err != nil {
+		return result, err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return result, errors.New("something wrong: " + res.Status)
+	}
+
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		return result, err
+	}
+
+	result = []Collection{}
+	if err := json.Unmarshal(body, &result); err != nil {
+		return result, err
+	}
+	return result, nil
+}
+
+func (this *Client) DeleteCollection(collectionID int64) error {
+	spath := "/api/collections" + "/" + strconv.FormatInt(collectionID, 10)
+
+	client, err := this.httpClient()
+	if err != nil {
+		return err
+	}
+
+	res, err := this.jsonRequest(context.TODO(), client, http.MethodDelete, spath, nil)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusNoContent {
+		return errors.New("something wrong: " + res.Status)
+	}
+	return nil
 }
