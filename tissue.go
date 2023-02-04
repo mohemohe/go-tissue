@@ -59,6 +59,23 @@ type (
 	TimelineOption struct {
 		Page int
 	}
+	Session struct {
+		Current time.Duration
+		ResetTo time.Time
+	}
+	Overview struct {
+		Average  time.Duration
+		Median   time.Duration
+		Longest  time.Duration
+		Shortest time.Duration
+		Sum      time.Duration
+		Count    int
+	}
+	Status struct {
+		User
+		Session  Session
+		Overview Overview
+	}
 )
 
 func NewClient(option *ClientOption) (*Client, error) {
@@ -296,9 +313,6 @@ func (this *Client) Search(option *SearchOption) (result []CheckInResult, err er
 	}
 
 	checkInNodes := doc.Find(".list-group-item")
-	if err != nil {
-		return nil, err
-	}
 	return this.parseChackIn(checkInNodes)
 }
 
@@ -324,8 +338,105 @@ func (this *Client) PublicTimeline(option *TimelineOption) (result []CheckInResu
 	}
 
 	checkInNodes := doc.Find(".container-fluid > .row > div[class*='col-']")
-	if err != nil {
-		return nil, err
-	}
 	return this.parseChackIn(checkInNodes)
+}
+
+func trimDurationFunc(r rune) bool {
+	return r == '日' || r == '時' || r == '間' || r == '分' || r == '経' || r == '過'
+}
+
+func toRawNumberString(s string) string {
+	return strings.ReplaceAll(strings.TrimFunc(s, trimDurationFunc), ",", "")
+}
+
+func elemToDuration(elem []string) time.Duration {
+	if len(elem) == 3 {
+		days, err1 := strconv.Atoi(toRawNumberString(elem[0]))
+		hours, err2 := strconv.Atoi(toRawNumberString(elem[1]))
+		minutes, err3 := strconv.Atoi(toRawNumberString(elem[2]))
+		if err1 == nil && err2 == nil && err3 == nil {
+			return (time.Duration(days) * time.Hour * 24) + (time.Duration(hours) * time.Hour) + (time.Duration(minutes) * time.Minute)
+		}
+	}
+	return time.Duration(0)
+}
+
+func (this *Client) GetStatus() (result Status, err error) {
+	spath := "/"
+
+	result = Status{
+		Session: Session{
+			Current: time.Duration(-1),
+			ResetTo: time.Unix(0, 0),
+		},
+		Overview: Overview{
+			Average:  time.Duration(-1),
+			Median:   time.Duration(-1),
+			Longest:  time.Duration(-1),
+			Shortest: time.Duration(-1),
+			Sum:      time.Duration(-1),
+			Count:    -1,
+		},
+	}
+
+	client, err := this.httpClient()
+	if err != nil {
+		return result, err
+	}
+
+	res, err := this.httpRequest(context.TODO(), client, http.MethodGet, spath, nil)
+	if err != nil {
+		return result, err
+	}
+	if res.StatusCode != http.StatusOK {
+		return result, errors.New("something wrong: " + res.Status)
+	}
+
+	doc, err := goquery.NewDocumentFromResponse(res)
+	if err != nil {
+		return result, err
+	}
+
+	infoNode := doc.Find(".container > .row > div[class*='col-'] > .card > .card-body").First()
+
+	result.User.ID = strings.TrimSpace(infoNode.Find(".tis-profile-mini-display-name a").First().Text())
+
+	result.User.DisplayName = strings.TrimSpace(strings.TrimPrefix(infoNode.Find(".tis-profile-mini-name a").First().Text(), "@"))
+
+	currentSessionTexts := strings.Split(strings.TrimSpace(infoNode.Find("h6 + p").First().Text()), " ")
+	result.Session.Current = elemToDuration(currentSessionTexts)
+
+	sessionResetTexts := strings.Split(strings.TrimSpace(infoNode.Find("h6 + p + p").First().Text()), " ")
+	if len(currentSessionTexts) == 3 {
+		sessionResetTexts[0] = strings.Trim(sessionResetTexts[0], "(")
+		sessionResetText := strings.Join(sessionResetTexts[0:2], " ")
+		if resetTo, err := time.Parse("2006/01/02 15:04", sessionResetText); err == nil {
+			result.Session.ResetTo = resetTo
+		}
+	}
+
+	overviewNodes := infoNode.Find(".tis-profile-stats-table tbody tr")
+	overviewNodes.Each(func(i int, s *goquery.Selection) {
+		durationLabel := strings.TrimSpace(s.Find("th").First().Text())
+		durationTexts := strings.Split(strings.TrimSpace(s.Find("td").First().Text()), " ")
+
+		switch durationLabel {
+		case "平均記録":
+			result.Overview.Average = elemToDuration(durationTexts)
+		case "中央値":
+			result.Overview.Median = elemToDuration(durationTexts)
+		case "最長記録":
+			result.Overview.Longest = elemToDuration(durationTexts)
+		case "最短記録":
+			result.Overview.Shortest = elemToDuration(durationTexts)
+		case "合計時間":
+			result.Overview.Sum = elemToDuration(durationTexts)
+		case "通算回数":
+			if count, err := strconv.Atoi(strings.Trim(durationTexts[0], "回")); err == nil {
+				result.Overview.Count = count
+			}
+		}
+	})
+
+	return result, nil
 }

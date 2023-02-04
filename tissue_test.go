@@ -7,6 +7,10 @@ import (
 )
 
 func TestClient_CheckIn(t *testing.T) {
+	if os.Getenv("TISSUE_SKIP_CHECKIN_TEST") != "" {
+		t.Skip("skip checkin test")
+	}
+
 	client, err := NewClient(&ClientOption{
 		Email:    os.Getenv("TISSUE_EMAIL"),
 		Password: os.Getenv("TISSUE_PASSWORD"),
@@ -143,4 +147,54 @@ func TestClient_PublicTimeline(t *testing.T) {
 
 		t.Log(checkIn)
 	}
+}
+
+func TestClient_GetStatus(t *testing.T) {
+	client, err := NewClient(&ClientOption{
+		Email:    os.Getenv("TISSUE_EMAIL"),
+		Password: os.Getenv("TISSUE_PASSWORD"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if client == nil {
+		t.Fatal("nil client")
+	}
+
+	status, err := client.GetStatus()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if status.User.ID == "" {
+		t.Error("could not parse user ID")
+	}
+	if status.User.DisplayName == "" {
+		t.Error("could not parse user display name")
+	}
+	if status.Session.Current == time.Duration(-1) {
+		t.Error("could not parse current session")
+	}
+	if status.Session.ResetTo == time.Unix(0, 0) {
+		t.Error("could not parse session reset datetime")
+	}
+	if status.Overview.Average == time.Duration(-1) {
+		t.Error("could not parse average duration of overview")
+	}
+	if status.Overview.Median == time.Duration(-1) {
+		t.Error("could not parse average duration of overview")
+	}
+	if status.Overview.Longest == time.Duration(-1) {
+		t.Error("could not parse average duration of overview")
+	}
+	if status.Overview.Shortest == time.Duration(-1) {
+		t.Error("could not parse average duration of overview")
+	}
+	if status.Overview.Sum == time.Duration(-1) {
+		t.Error("could not parse average duration of overview")
+	}
+	if status.Overview.Count == -1 {
+		t.Error("could not parse count of overview")
+	}
+
+	t.Log(status)
 }
