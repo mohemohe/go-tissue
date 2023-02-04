@@ -11,6 +11,8 @@ func TestClient_CheckIn(t *testing.T) {
 		t.Skip("skip checkin test")
 	}
 
+	defer time.Sleep(2 * time.Second)
+
 	client, err := NewClient(&ClientOption{
 		Email:    os.Getenv("TISSUE_EMAIL"),
 		Password: os.Getenv("TISSUE_PASSWORD"),
@@ -41,6 +43,8 @@ func TestClient_CheckIn(t *testing.T) {
 }
 
 func TestClient_ListTags(t *testing.T) {
+	defer time.Sleep(2 * time.Second)
+
 	client, err := NewClient(&ClientOption{
 		Email:    os.Getenv("TISSUE_EMAIL"),
 		Password: os.Getenv("TISSUE_PASSWORD"),
@@ -71,6 +75,8 @@ func TestClient_ListTags(t *testing.T) {
 }
 
 func TestClient_Search(t *testing.T) {
+	defer time.Sleep(2 * time.Second)
+
 	client, err := NewClient(&ClientOption{
 		Email:    os.Getenv("TISSUE_EMAIL"),
 		Password: os.Getenv("TISSUE_PASSWORD"),
@@ -111,6 +117,8 @@ func TestClient_Search(t *testing.T) {
 }
 
 func TestClient_PublicTimeline(t *testing.T) {
+	defer time.Sleep(2 * time.Second)
+
 	client, err := NewClient(&ClientOption{
 		Email:    os.Getenv("TISSUE_EMAIL"),
 		Password: os.Getenv("TISSUE_PASSWORD"),
@@ -150,6 +158,8 @@ func TestClient_PublicTimeline(t *testing.T) {
 }
 
 func TestClient_GetStatus(t *testing.T) {
+	defer time.Sleep(2 * time.Second)
+
 	client, err := NewClient(&ClientOption{
 		Email:    os.Getenv("TISSUE_EMAIL"),
 		Password: os.Getenv("TISSUE_PASSWORD"),
