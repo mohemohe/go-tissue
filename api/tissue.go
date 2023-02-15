@@ -20,30 +20,30 @@ type (
 		cookie *cookiejar.Jar
 	}
 	ClientOption struct {
-		BaseURL  string
+		BaseURL   string
 		WebhookID string
 	}
 	CheckInOption struct {
 		DateTime     time.Time `json:"-"`
-		Tags         []string `json:"tags"`
-		Link         string `json:"link"`
-		Note         string `json:"note"`
-		Private      bool `json:"is_private"`
-		TooSensitive bool `json:"is_too_sensitive"`
+		Tags         []string  `json:"tags"`
+		Link         string    `json:"link"`
+		Note         string    `json:"note"`
+		Private      bool      `json:"is_private"`
+		TooSensitive bool      `json:"is_too_sensitive"`
 	}
 	checkInRequest struct {
 		CheckInOption
-		checkedInAt  string `json:"checked_in_at"`
+		checkedInAt string `json:"checked_in_at"`
 	}
 	checkInResponse struct {
-		Status int `json:"status"`
+		Status  int     `json:"status"`
 		CheckIn CheckIn `json:"checkin"`
 	}
 	CheckIn struct {
 		CheckInOption
-		ID uint `json:"id"`
-		Source string `json:"source"`
-		CheckedInAt  string `json:"checked_in_at"`
+		ID          uint   `json:"id"`
+		Source      string `json:"source"`
+		CheckedInAt string `json:"checked_in_at"`
 	}
 )
 
@@ -92,7 +92,7 @@ func (this *Client) CheckIn(ctx context.Context, option *CheckInOption) (result 
 
 	checkInRequst := checkInRequest{
 		CheckInOption: *option,
-		checkedInAt: option.DateTime.Format("2006-01-02T15:04:05-0700"),
+		checkedInAt:   option.DateTime.Format("2006-01-02T15:04:05-0700"),
 	}
 	b, err := json.Marshal(checkInRequst)
 	if err != nil {
