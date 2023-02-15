@@ -217,7 +217,7 @@ func TestClient_GetStatus(t *testing.T) {
 	t.Log(status)
 }
 
-var createdCollection Collection
+var createdCollection *Collection
 
 func TestClient_CreateCollection(t *testing.T) {
 	defer time.Sleep(2 * time.Second)
@@ -259,6 +259,42 @@ func TestClient_CreateCollection(t *testing.T) {
 	t.Log(collection)
 }
 
+func TestClient_ListCollection(t *testing.T) {
+	defer time.Sleep(2 * time.Second)
+
+	client, err := NewClient(&ClientOption{
+		Email:    os.Getenv("TISSUE_EMAIL"),
+		Password: os.Getenv("TISSUE_PASSWORD"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if client == nil {
+		t.Fatal("nil client")
+	}
+
+	listOption := &ListCollectionOption{}
+	collections, err := client.ListCollection(listOption)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(collections) == 0 {
+		t.Error("no collections")
+	}
+
+	found := false
+	for _, collection := range collections {
+		// TODO: check other fields
+		if collection.ID == createdCollection.ID {
+			found = true
+		}
+	}
+
+	if !found {
+		t.Error("could not find created collection")
+	}
+}
+
 func TestClient_EditCollection(t *testing.T) {
 	defer time.Sleep(2 * time.Second)
 
@@ -298,7 +334,9 @@ func TestClient_EditCollection(t *testing.T) {
 	t.Log(collection)
 }
 
-func TestClient_ListCollection(t *testing.T) {
+var requestedCollectionOption *CreateCollectionItemOption
+
+func TestClient_CreateCollectionItem(t *testing.T) {
 	defer time.Sleep(2 * time.Second)
 
 	client, err := NewClient(&ClientOption{
@@ -312,25 +350,130 @@ func TestClient_ListCollection(t *testing.T) {
 		t.Fatal("nil client")
 	}
 
-	collections, err := client.ListCollection()
+	createOption := &CreateCollectionItemOption{
+		CollectionID: createdCollection.ID,
+		Link:         "https://example.com",
+		Tags:         []string{"test", "tag"},
+		Note:         "test note",
+	}
+	requestedCollectionOption = createOption
+
+	if err := client.CreateCollectionItem(createOption); err != nil {
+		t.Error(err)
+	}
+}
+
+var collectionItem *CollectionItem
+
+func TestClient_ListCollectionItem(t *testing.T) {
+	defer time.Sleep(2 * time.Second)
+
+	client, err := NewClient(&ClientOption{
+		Email:    os.Getenv("TISSUE_EMAIL"),
+		Password: os.Getenv("TISSUE_PASSWORD"),
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(collections) == 0 {
-		return
+	if client == nil {
+		t.Fatal("nil client")
 	}
-	for _, collection := range collections {
-		if collection.ID <= 0 {
-			t.Error("invalid collection ID")
-		}
-		if collection.Title == "" {
-			t.Error("invalid collection title")
-		}
-		if collection.UserID == "" {
-			t.Error("invalid collection user ID")
-		}
 
-		t.Log(collection)
+	listOption := &ListCollectionItemOption{
+		CollectionID: createdCollection.ID,
+	}
+
+	collectionItems, err := client.ListCollectionItem(listOption)
+	if err != nil {
+		t.Error(err)
+	}
+	if len(collectionItems) == 0 {
+		t.Error("no collection items")
+	}
+
+	for _, item := range collectionItems {
+		if item.Link == requestedCollectionOption.Link {
+			collectionItem = &item
+		}
+	}
+	if collectionItem == nil {
+		t.Error("could not find created collection item")
+	}
+}
+
+func TestClient_EditCollectionItem(t *testing.T) {
+	defer time.Sleep(2 * time.Second)
+
+	client, err := NewClient(&ClientOption{
+		Email:    os.Getenv("TISSUE_EMAIL"),
+		Password: os.Getenv("TISSUE_PASSWORD"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if client == nil {
+		t.Fatal("nil client")
+	}
+
+	editOption := &EditCollectionItemOption{
+		CollectionID: createdCollection.ID,
+		ItemID:       collectionItem.ID,
+		Note:         "test note 2",
+		Tags:         []string{"test", "tag", "2"},
+	}
+
+	collectionItem, err := client.EditCollectionItem(editOption)
+	if err != nil {
+		t.Error(err)
+	}
+
+	if collectionItem.CollectionID != editOption.CollectionID {
+		t.Error("invalid collection ID")
+	}
+	if collectionItem.ID != editOption.ItemID {
+		t.Error("invalid item ID")
+	}
+	if collectionItem.Note != editOption.Note {
+		t.Error("invalid note")
+	}
+	if len(collectionItem.Tags) != len(editOption.Tags) {
+		t.Error("invalid tags")
+	}
+}
+
+func TestClient_DeleteCollectionItem(t *testing.T) {
+	defer time.Sleep(2 * time.Second)
+
+	client, err := NewClient(&ClientOption{
+		Email:    os.Getenv("TISSUE_EMAIL"),
+		Password: os.Getenv("TISSUE_PASSWORD"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if client == nil {
+		t.Fatal("nil client")
+	}
+
+	deleteOption := &DeleteCollectionItemOption{
+		CollectionID: createdCollection.ID,
+		ItemID:       collectionItem.ID,
+	}
+
+	if err := client.DeleteCollectionItem(deleteOption); err != nil {
+		t.Error(err)
+	}
+
+	listOption := &ListCollectionItemOption{
+		CollectionID: createdCollection.ID,
+	}
+
+	collectionItems, err := client.ListCollectionItem(listOption)
+	if err != nil {
+		t.Error(err)
+	}
+	if len(collectionItems) != 0 {
+		t.Error("could not delete collection item")
 	}
 }
 

@@ -87,11 +87,44 @@ type (
 		Title   string `json:"title"`
 		Private bool   `json:"is_private"`
 	}
+	ListCollectionOption struct {
+	}
 	Collection struct {
 		ID      int64  `json:"id"`
 		Private bool   `json:"is_private"`
 		Title   string `json:"title"`
 		UserID  string `json:"user_name"`
+	}
+	CollectionItem struct {
+		ID           int64    `json:"id"`
+		CollectionID int64    `json:"collection_id"`
+		Link         string   `json:"link"`
+		Note         string   `json:"note"`
+		NoteHTML     string   `json:"note_html"`
+		Tags         []string `json:"tags"`
+		CheckInURL   string   `json:"checkin_url"`
+		UserID       string   `json:"user_name"`
+	}
+	CreateCollectionItemOption struct {
+		CollectionID int64    `json:"-"`
+		Link         string   `json:"link"`
+		Note         string   `json:"note"`
+		Tags         []string `json:"tags"`
+		flash        bool     `json:"flash"`
+	}
+	EditCollectionItemOption struct {
+		CollectionID int64    `json:"-"`
+		ItemID       int64    `json:"-"`
+		Note         string   `json:"note"`
+		Tags         []string `json:"tags"`
+		flash        bool     `json:"flash"`
+	}
+	ListCollectionItemOption struct {
+		CollectionID int64 `json:"-"`
+	}
+	DeleteCollectionItemOption struct {
+		CollectionID int64
+		ItemID       int64
 	}
 )
 
@@ -405,10 +438,10 @@ func elemToDuration(elem []string) time.Duration {
 	return time.Duration(0)
 }
 
-func (this *Client) GetStatus() (result Status, err error) {
+func (this *Client) GetStatus() (result *Status, err error) {
 	spath := "/"
 
-	result = Status{
+	result = &Status{
 		Session: Session{
 			Current: time.Duration(-1),
 			ResetTo: time.Unix(0, 0),
@@ -485,7 +518,7 @@ func (this *Client) GetStatus() (result Status, err error) {
 	return result, nil
 }
 
-func (this *Client) CreateCollection(option *CreateCollectionOption) (result Collection, err error) {
+func (this *Client) CreateCollection(option *CreateCollectionOption) (result *Collection, err error) {
 	spath := "/api/collections"
 
 	client, err := this.httpClient()
@@ -513,14 +546,14 @@ func (this *Client) CreateCollection(option *CreateCollectionOption) (result Col
 		return result, err
 	}
 
-	result = Collection{}
-	if err := json.Unmarshal(body, &result); err != nil {
+	result = &Collection{}
+	if err := json.Unmarshal(body, result); err != nil {
 		return result, err
 	}
 	return result, nil
 }
 
-func (this *Client) EditCollection(option *EditCollectionOption) (result Collection, err error) {
+func (this *Client) EditCollection(option *EditCollectionOption) (result *Collection, err error) {
 	spath := "/api/collections" + "/" + strconv.FormatInt(option.ID, 10)
 
 	client, err := this.httpClient()
@@ -548,14 +581,14 @@ func (this *Client) EditCollection(option *EditCollectionOption) (result Collect
 		return result, err
 	}
 
-	result = Collection{}
-	if err := json.Unmarshal(body, &result); err != nil {
+	result = &Collection{}
+	if err := json.Unmarshal(body, result); err != nil {
 		return result, err
 	}
 	return result, nil
 }
 
-func (this *Client) ListCollection() (result []Collection, err error) {
+func (this *Client) ListCollection(option *ListCollectionOption) (result []Collection, err error) {
 	spath := "/api/collections"
 
 	client, err := this.httpClient()
@@ -587,6 +620,118 @@ func (this *Client) ListCollection() (result []Collection, err error) {
 
 func (this *Client) DeleteCollection(collectionID int64) error {
 	spath := "/api/collections" + "/" + strconv.FormatInt(collectionID, 10)
+
+	client, err := this.httpClient()
+	if err != nil {
+		return err
+	}
+
+	res, err := this.jsonRequest(context.TODO(), client, http.MethodDelete, spath, nil)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusNoContent {
+		return errors.New("something wrong: " + res.Status)
+	}
+	return nil
+}
+
+func (this *Client) CreateCollectionItem(option *CreateCollectionItemOption) error {
+	spath := "/api/collections" + "/" + strconv.FormatInt(option.CollectionID, 10) + "/items"
+
+	client, err := this.httpClient()
+	if err != nil {
+		return err
+	}
+
+	option.flash = true
+	payload, err := json.Marshal(option)
+	if err != nil {
+		return err
+	}
+
+	res, err := this.jsonRequest(context.TODO(), client, http.MethodPost, spath, bytes.NewReader(payload))
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusCreated {
+		return errors.New("something wrong: " + res.Status)
+	}
+	return nil
+}
+
+func (this *Client) EditCollectionItem(option *EditCollectionItemOption) (result *CollectionItem, err error) {
+	spath := "/api/collections" + "/" + strconv.FormatInt(option.CollectionID, 10) + "/items" + "/" + strconv.FormatInt(option.ItemID, 10)
+
+	client, err := this.httpClient()
+	if err != nil {
+		return nil, err
+	}
+
+	option.flash = true
+	payload, err := json.Marshal(option)
+	if err != nil {
+		return nil, err
+	}
+
+	res, err := this.jsonRequest(context.TODO(), client, http.MethodPut, spath, bytes.NewReader(payload))
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return nil, errors.New("something wrong: " + res.Status)
+	}
+
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		return result, err
+	}
+
+	result = &CollectionItem{}
+	err = json.Unmarshal(body, result)
+
+	return result, nil
+}
+
+func (this *Client) ListCollectionItem(option *ListCollectionItemOption) (result []CollectionItem, err error) {
+	spath := "/api/collections" + "/" + strconv.FormatInt(option.CollectionID, 10) + "/items"
+
+	client, err := this.httpClient()
+	if err != nil {
+		return nil, err
+	}
+
+	res, err := this.jsonRequest(context.TODO(), client, http.MethodGet, spath, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return nil, errors.New("something wrong: " + res.Status)
+	}
+
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		return result, err
+	}
+
+	result = []CollectionItem{}
+	err = json.Unmarshal(body, &result)
+
+	return result, nil
+}
+
+// TODO: GetCollectionItem
+
+func (this *Client) DeleteCollectionItem(option *DeleteCollectionItemOption) error {
+	spath := "/api/collections" + "/" + strconv.FormatInt(option.CollectionID, 10) + "/items" + "/" + strconv.FormatInt(option.ItemID, 10)
 
 	client, err := this.httpClient()
 	if err != nil {
