@@ -331,41 +331,45 @@ func (this *Client) ListTags(option *ListTagsOption) (result []ListTagsResult, e
 	return result, nil
 }
 
-func (this *Client) parseChackIn(nodes *goquery.Selection) (result []CheckInResult, err error) {
-	result = make([]CheckInResult, nodes.Length())
+func (this *Client) parseChackIn(nodes *goquery.Selection) (results []CheckInResult, err error) {
+	results = make([]CheckInResult, 0)
 	nodes.Each(func(i int, s *goquery.Selection) {
 		dateTimeNode := s.Find("a[href*='/checkin/']").First()
 		checkInID, err := strconv.ParseInt(strings.TrimSpace(strings.TrimPrefix(dateTimeNode.AttrOr("href", "-1"), this.option.BaseURL+"/checkin/")), 10, 64)
-		if err != nil {
-			checkInID = -1
+		if err != nil || checkInID == -1 {
+			return
 		}
-		result[i].ID = checkInID
+		result := CheckInResult{}
+		result.ID = checkInID
 
-		dateTime, err := time.Parse("2006/01/02 15:04", strings.TrimSpace(dateTimeNode.Text()))
+		dateTimeElems := strings.Split(dateTimeNode.Text(), "～")
+		dateTime, err := time.Parse("2006/01/02 15:04", strings.TrimSpace(dateTimeElems[len(dateTimeElems)-1]))
 		if err != nil {
 			dateTime = time.Unix(0, 0)
 		}
-		result[i].DateTime = dateTime
+		result.DateTime = dateTime
 
-		userNode := s.Find("a[href*='/user/']").First()
-		result[i].User.DisplayName = strings.TrimSpace(userNode.Text())
-		result[i].User.ID = strings.TrimSpace(strings.TrimPrefix(userNode.AttrOr("href", "-1"), this.option.BaseURL+"/user/"))
+		userNode := s.Find("h5 a[href*='/user/']").First()
+		result.User.DisplayName = strings.TrimSpace(userNode.Text())
+		result.User.ID = strings.TrimSpace(strings.TrimPrefix(userNode.AttrOr("href", "-1"), this.option.BaseURL+"/user/"))
 
 		tagNodes := s.Find(".tis-checkin-tags")
 		tagNodes.Each(func(j int, t *goquery.Selection) {
 			badgeNodes := t.Find(".badge")
-			result[i].Tags = make([]string, badgeNodes.Length())
+			result.Tags = make([]string, badgeNodes.Length())
 			badgeNodes.Each(func(k int, u *goquery.Selection) {
-				result[i].Tags[k] = strings.TrimSpace(u.Text())
+				result.Tags[k] = strings.TrimSpace(u.Text())
 			})
 		})
 
-		result[i].Link = s.Find(".oi-link-intact + a").First().AttrOr("href", "")
+		result.Link = s.Find(".oi-link-intact + a").First().AttrOr("href", "")
 
-		result[i].Note = strings.TrimSpace(s.Find(".tis-checkin-tags + div > p").First().Text())
+		result.Note = strings.TrimSpace(s.Find(".tis-checkin-tags + div > p").First().Text())
+
+		results = append(results, result)
 	})
 
-	return result, nil
+	return results, nil
 }
 
 func (this *Client) Search(option *SearchOption) (result []CheckInResult, err error) {
@@ -390,6 +394,31 @@ func (this *Client) Search(option *SearchOption) (result []CheckInResult, err er
 	}
 
 	checkInNodes := doc.Find(".list-group-item")
+	return this.parseChackIn(checkInNodes)
+}
+
+func (this *Client) UserTimeline(displayName string, option *TimelineOption) (result []CheckInResult, err error) {
+	spath := "/user/" + displayName + "?page=" + strconv.Itoa(option.Page)
+
+	client, err := this.httpClient()
+	if err != nil {
+		return nil, err
+	}
+
+	res, err := this.httpRequest(context.TODO(), client, http.MethodGet, spath, nil)
+	if err != nil {
+		return nil, err
+	}
+	if res.StatusCode != http.StatusOK {
+		return nil, errors.New("something wrong: " + res.Status)
+	}
+
+	doc, err := goquery.NewDocumentFromResponse(res)
+	if err != nil {
+		return nil, err
+	}
+
+	checkInNodes := doc.Find(".container .list-group li")
 	return this.parseChackIn(checkInNodes)
 }
 
