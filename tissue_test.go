@@ -14,6 +14,35 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
+func TestClient_UserTimeline(t *testing.T) {
+	defer time.Sleep(2 * time.Second)
+
+	client, err := NewClient(&ClientOption{
+		Email:    os.Getenv("TISSUE_EMAIL"),
+		Password: os.Getenv("TISSUE_PASSWORD"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if client == nil {
+		t.Fatal("nil client")
+	}
+
+	result, err := client.UserTimeline("shibafu528", &TimelineOption{
+		Page: 1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result) == 0 {
+		t.Error("maybe invalid page")
+	}
+
+	for _, checkIn := range result {
+		t.Log("checkin:", checkIn)
+	}
+}
+
 func TestClient_CheckIn(t *testing.T) {
 	if os.Getenv("TISSUE_SKIP_CHECKIN_TEST") == "1" {
 		t.Skip("skip checkin test")
