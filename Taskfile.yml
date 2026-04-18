@@ -1,0 +1,29 @@
+version: '3'
+
+tasks:
+  test:
+    desc: 全パッケージのテストを実行
+    cmds:
+      - task: test:classic
+      - task: test:api
+      - task: test:cli
+
+  test:classic:
+    desc: scraping クライアント (ルートパッケージ) のテスト
+    cmds:
+      - go test -v -count=1 ./
+
+  test:api:
+    desc: API トークン版クライアントのテスト
+    cmds:
+      - go test -v -count=1 ./api
+
+  test:cli:
+    desc: CLI (cmd/tissue) のテスト
+    cmds:
+      - go test -v -count=1 ./cmd/tissue
+
+  build:
+    desc: CLI バイナリ (tissue) をビルド
+    cmds:
+      - go build -o tissue ./cmd/tissue

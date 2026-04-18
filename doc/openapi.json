@@ -1,0 +1,2057 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Tissue API",
+    "description": "夜のライフログサービス Tissue の公開API仕様です。\n全てのAPIのURLは `https://shikorism.net/api` から始まります。\n\n一部APIではドキュメントに無いプロパティを応答する場合がありますが、これは正式な仕様ではありません。\n予告なく削除する可能性がありますので**使用しないでください**。\n",
+    "version": "2023.12.3"
+  },
+  "servers": [
+    {
+      "url": "https://shikorism.net/api"
+    }
+  ],
+  "tags": [
+    {
+      "name": "webhook",
+      "description": "Incoming Webhookに関する仕様"
+    },
+    {
+      "name": "users",
+      "description": "ユーザー情報に関する操作"
+    },
+    {
+      "name": "checkin",
+      "description": "チェックインに関する操作"
+    },
+    {
+      "name": "collection",
+      "description": "コレクションに関する操作"
+    },
+    {
+      "name": "user-stats",
+      "description": "ユーザーの統計情報"
+    },
+    {
+      "name": "timelines",
+      "description": "タイムライン"
+    },
+    {
+      "name": "search",
+      "description": "検索"
+    }
+  ],
+  "paths": {
+    "/webhooks/checkin/{id}": {
+      "post": {
+        "summary": "チェックイン",
+        "description": "Webhook IDを発行したユーザで新規チェックインを行います。",
+        "tags": [
+          "webhook"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Webhook管理ページで発行したID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCheckin"
+              },
+              "examples": {
+                "simple": {
+                  "description": "何も指定しなければ、現在時刻で公開チェックインをおこないます。",
+                  "value": {}
+                },
+                "complete": {
+                  "value": {
+                    "checked_in_at": "2020-07-21T19:19:19+0900",
+                    "note": "すごく出た",
+                    "link": "http://example.com",
+                    "tags": [
+                      "Example",
+                      "Example_2"
+                    ],
+                    "is_private": false,
+                    "is_too_sensitive": false,
+                    "discard_elapsed_time": false
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "チェックイン成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "status",
+                    "checkin"
+                  ],
+                  "properties": {
+                    "status": {
+                      "type": "number",
+                      "description": "HTTPステータスコードと同じ値",
+                      "example": 200
+                    },
+                    "checkin": {
+                      "$ref": "#/components/schemas/Checkin"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "無効なWebhook ID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "status",
+                    "error"
+                  ],
+                  "properties": {
+                    "status": {
+                      "type": "number",
+                      "description": "HTTPステータスコードと同じ値",
+                      "example": 404
+                    },
+                    "error": {
+                      "type": "object",
+                      "description": "エラーデータ",
+                      "required": [
+                        "message"
+                      ],
+                      "properties": {
+                        "message": {
+                          "type": "string",
+                          "description": "エラーの概要",
+                          "example": "The webhook is unavailable"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "バリデーションエラー",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "status",
+                    "error"
+                  ],
+                  "properties": {
+                    "status": {
+                      "type": "number",
+                      "description": "HTTPステータスコードと同じ値",
+                      "example": 422
+                    },
+                    "error": {
+                      "type": "object",
+                      "description": "エラーデータ",
+                      "required": [
+                        "message"
+                      ],
+                      "properties": {
+                        "message": {
+                          "type": "string",
+                          "description": "エラーの概要",
+                          "example": "Validation failed"
+                        },
+                        "violations": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          },
+                          "description": "エラーが発生した各フィールドについてのメッセージ",
+                          "example": [
+                            "Checkin already exists in this time"
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/me": {
+      "get": {
+        "summary": "自分のユーザー情報の取得",
+        "description": "自分自身のユーザー情報を取得します。",
+        "tags": [
+          "users"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/users/{name}": {
+      "get": {
+        "summary": "ユーザー情報の取得",
+        "description": "指定したユーザーの情報を取得します。",
+        "tags": [
+          "users"
+        ],
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "description": "ユーザー名",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "存在しないユーザー"
+          }
+        }
+      }
+    },
+    "/v1/users/{name}/checkins": {
+      "get": {
+        "summary": "チェックイン一覧の取得",
+        "description": "指定したユーザーのチェックイン一覧を取得します。",
+        "tags": [
+          "users"
+        ],
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "description": "ユーザー名",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "description": "ページ番号",
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "description": "1ページあたりのアイテム数",
+            "schema": {
+              "type": "integer",
+              "default": 20,
+              "minimum": 10,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "has_link",
+            "in": "query",
+            "description": "オカズリンクを含むチェックインのみ取得",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "since",
+            "in": "query",
+            "description": "検索範囲の開始日",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date",
+              "example": "2020-07-01"
+            }
+          },
+          {
+            "name": "until",
+            "in": "query",
+            "description": "検索範囲の終了日",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date",
+              "example": "2021-07-31"
+            }
+          },
+          {
+            "name": "order",
+            "in": "query",
+            "description": "チェックイン日時の並び順",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "asc",
+                "desc"
+              ],
+              "default": "desc"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "headers": {
+              "X-Total-Count": {
+                "description": "全体のアイテム数",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Checkin"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "ユーザーがチェックイン履歴を公開していない場合"
+          },
+          "404": {
+            "description": "存在しないユーザー"
+          }
+        }
+      }
+    },
+    "/v1/users/{name}/likes": {
+      "get": {
+        "summary": "いいねしたチェックイン一覧の取得",
+        "description": "指定したユーザーがいいねしたチェックインの一覧を取得します。",
+        "tags": [
+          "users"
+        ],
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "description": "ユーザー名",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "description": "ページ番号",
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "description": "1ページあたりのアイテム数",
+            "schema": {
+              "type": "integer",
+              "default": 20,
+              "minimum": 10,
+              "maximum": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "headers": {
+              "X-Total-Count": {
+                "description": "全体のアイテム数",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Checkin"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "ユーザーがチェックイン履歴かいいね一覧を公開していない場合"
+          },
+          "404": {
+            "description": "存在しないユーザー"
+          }
+        }
+      }
+    },
+    "/v1/users/{name}/collections": {
+      "get": {
+        "summary": "コレクション一覧の取得",
+        "description": "指定したユーザーのコレクション一覧を取得します。",
+        "tags": [
+          "users"
+        ],
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "description": "ユーザー名",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "description": "ページ番号",
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "description": "1ページあたりのアイテム数",
+            "schema": {
+              "type": "integer",
+              "default": 20,
+              "minimum": 10,
+              "maximum": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "headers": {
+              "X-Total-Count": {
+                "description": "全体のアイテム数",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Collection"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "ユーザーがチェックイン履歴を公開していない場合"
+          },
+          "404": {
+            "description": "存在しないユーザー"
+          }
+        }
+      }
+    },
+    "/v1/users/{name}/stats/checkin/daily": {
+      "get": {
+        "summary": "日毎のチェックイン数",
+        "description": "指定したユーザーのチェックイン数を日毎に合計した情報を取得します。",
+        "tags": [
+          "user-stats"
+        ],
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "description": "ユーザー名",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "since",
+            "in": "query",
+            "description": "集計範囲の開始日",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date",
+              "example": "2020-07-21"
+            }
+          },
+          {
+            "name": "until",
+            "in": "query",
+            "description": "集計範囲の終了日",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date",
+              "example": "2021-07-21"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DailyCheckinSummary"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "ユーザーがチェックイン履歴を公開していない場合"
+          },
+          "404": {
+            "description": "存在しないユーザー"
+          }
+        }
+      }
+    },
+    "/v1/users/{name}/stats/checkin/hourly": {
+      "get": {
+        "summary": "時間毎のチェックイン数",
+        "description": "指定したユーザーのチェックイン数を時間毎に合計した情報を取得します。",
+        "tags": [
+          "user-stats"
+        ],
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "description": "ユーザー名",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "since",
+            "in": "query",
+            "description": "集計範囲の開始日",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date",
+              "example": "2020-07-21"
+            }
+          },
+          {
+            "name": "until",
+            "in": "query",
+            "description": "集計範囲の終了日",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date",
+              "example": "2021-07-21"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/HourlyCheckinSummary"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "ユーザーがチェックイン履歴を公開していない場合"
+          },
+          "404": {
+            "description": "存在しないユーザー"
+          }
+        }
+      }
+    },
+    "/v1/users/{name}/stats/tags": {
+      "get": {
+        "summary": "最も使用したタグ",
+        "description": "指定したユーザーが期間内に最も使用したタグの上位10件を取得します。",
+        "tags": [
+          "user-stats"
+        ],
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "description": "ユーザー名",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "since",
+            "in": "query",
+            "description": "集計範囲の開始日",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date",
+              "example": "2020-07-21"
+            }
+          },
+          {
+            "name": "until",
+            "in": "query",
+            "description": "集計範囲の終了日",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date",
+              "example": "2021-07-21"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MostlyUsedCheckinTag"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "ユーザーがチェックイン履歴を公開していない場合"
+          },
+          "404": {
+            "description": "存在しないユーザー"
+          }
+        }
+      }
+    },
+    "/v1/users/{name}/stats/links": {
+      "get": {
+        "summary": "最も使用したオカズ",
+        "description": "指定したユーザーが期間内に最も使用したオカズの上位10件を取得します。\n\n### 範囲指定について\n負荷を抑えるため、集計範囲を最大1年分に制限しています。\n\n`since` のみを指定した場合はその日から1年分、`until` のみを指定した場合はその日までの1年分を集計します。\n\n両方指定した場合で1年以上の範囲を指定すると `since` から1年分までに制限して集計します。\n\nどちらも指定しなかった場合は、今年1年分のデータを集計します。\n",
+        "tags": [
+          "user-stats"
+        ],
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "description": "ユーザー名",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "since",
+            "in": "query",
+            "description": "集計範囲の開始日",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date",
+              "example": "2020-07-21"
+            }
+          },
+          {
+            "name": "until",
+            "in": "query",
+            "description": "集計範囲の終了日",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date",
+              "example": "2021-07-21"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MostlyUsedLink"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "ユーザーがチェックイン履歴を公開していない場合"
+          },
+          "404": {
+            "description": "存在しないユーザー"
+          }
+        }
+      }
+    },
+    "/v1/checkins": {
+      "post": {
+        "summary": "チェックインの作成",
+        "description": "新規チェックインを行います。",
+        "tags": [
+          "checkin"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCheckin"
+              },
+              "examples": {
+                "simple": {
+                  "description": "全てのプロパティは省略可能です。何も指定しなければ、現在時刻で公開チェックインをおこないます。",
+                  "value": {}
+                },
+                "complete": {
+                  "value": {
+                    "checked_in_at": "2020-07-21T19:19:19+0900",
+                    "note": "すごく出た",
+                    "link": "http://example.com",
+                    "tags": [
+                      "Example",
+                      "Example_2"
+                    ],
+                    "is_private": false,
+                    "is_too_sensitive": false,
+                    "discard_elapsed_time": false
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Checkin"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "バリデーションエラー",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "status",
+                    "error"
+                  ],
+                  "properties": {
+                    "status": {
+                      "type": "number",
+                      "description": "HTTPステータスコードと同じ値",
+                      "example": 422
+                    },
+                    "error": {
+                      "$ref": "#/components/schemas/ValidationError"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/checkins/{id}": {
+      "get": {
+        "summary": "チェックインの取得",
+        "description": "指定したIDのチェックインの情報を取得します。",
+        "tags": [
+          "checkin"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "チェックインID",
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Checkin"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "アクセス権の無いチェックイン (ユーザーがチェックイン履歴を公開していない、またはチェックインが非公開設定)"
+          },
+          "404": {
+            "description": "存在しない場合"
+          }
+        }
+      },
+      "patch": {
+        "summary": "チェックインの編集",
+        "description": "指定したIDのチェックインの情報を編集します。\nリクエスト内の項目は全て省略可能であり、更新したい項目のみを送信することができます。\n",
+        "tags": [
+          "checkin"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "チェックインID",
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateCheckin"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Checkin"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "自分以外のチェックインに対して操作を試みた場合"
+          },
+          "404": {
+            "description": "存在しない場合"
+          },
+          "422": {
+            "description": "バリデーションエラー",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "status",
+                    "error"
+                  ],
+                  "properties": {
+                    "status": {
+                      "type": "number",
+                      "description": "HTTPステータスコードと同じ値",
+                      "example": 422
+                    },
+                    "error": {
+                      "$ref": "#/components/schemas/ValidationError"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "チェックインの削除",
+        "description": "指定したIDのチェックインを削除します。",
+        "tags": [
+          "checkin"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "チェックインID",
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "成功、または既に存在しない場合"
+          },
+          "403": {
+            "description": "自分以外のチェックインに対して操作を試みた場合"
+          }
+        }
+      }
+    },
+    "/v1/collections": {
+      "post": {
+        "summary": "コレクションの作成",
+        "description": "新規コレクションを作成します。",
+        "tags": [
+          "collection"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCollection"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Collection"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "バリデーションエラー",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "status",
+                    "error"
+                  ],
+                  "properties": {
+                    "status": {
+                      "type": "number",
+                      "description": "HTTPステータスコードと同じ値",
+                      "example": 422
+                    },
+                    "error": {
+                      "$ref": "#/components/schemas/ValidationError"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/collections/{collection_id}": {
+      "get": {
+        "summary": "コレクションの取得",
+        "description": "指定したIDのコレクションの情報を取得します。",
+        "tags": [
+          "collection"
+        ],
+        "parameters": [
+          {
+            "name": "collection_id",
+            "in": "path",
+            "required": true,
+            "description": "コレクションID",
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Collection"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "存在しない、またはアクセス権の無いコレクションの場合 (ユーザーがチェックイン履歴を公開していない、またはコレクションが非公開設定)"
+          }
+        }
+      },
+      "put": {
+        "summary": "コレクションの編集",
+        "description": "指定したIDのコレクションの情報を編集します。",
+        "tags": [
+          "collection"
+        ],
+        "parameters": [
+          {
+            "name": "collection_id",
+            "in": "path",
+            "required": true,
+            "description": "コレクションID",
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateCollection"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Collection"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "自分以外が作成したコレクションに対して操作を試みた場合"
+          },
+          "404": {
+            "description": "存在しない場合"
+          },
+          "422": {
+            "description": "バリデーションエラー",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "status",
+                    "error"
+                  ],
+                  "properties": {
+                    "status": {
+                      "type": "number",
+                      "description": "HTTPステータスコードと同じ値",
+                      "example": 422
+                    },
+                    "error": {
+                      "$ref": "#/components/schemas/ValidationError"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "コレクションの削除",
+        "description": "指定したIDのコレクションを削除します。\n\n### 注意\n実装上の都合で、Checkin APIと異なり**応答がべき等ではありません**。既に削除されている場合は404エラーになりますので、ご注意ください。\n",
+        "tags": [
+          "collection"
+        ],
+        "parameters": [
+          {
+            "name": "collection_id",
+            "in": "path",
+            "required": true,
+            "description": "コレクションID",
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "成功"
+          },
+          "403": {
+            "description": "自分以外が作成したコレクションに対して操作を試みた場合"
+          },
+          "404": {
+            "description": "存在しない場合"
+          }
+        }
+      }
+    },
+    "/v1/collections/{collection_id}/items": {
+      "get": {
+        "summary": "コレクション内アイテム一覧の取得",
+        "description": "指定したコレクションに含まれるアイテムの一覧を取得します。",
+        "tags": [
+          "collection"
+        ],
+        "parameters": [
+          {
+            "name": "collection_id",
+            "in": "path",
+            "required": true,
+            "description": "コレクションID",
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "description": "ページ番号",
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "description": "1ページあたりのアイテム数",
+            "schema": {
+              "type": "integer",
+              "default": 20,
+              "minimum": 10,
+              "maximum": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "headers": {
+              "X-Total-Count": {
+                "description": "全体のアイテム数",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CollectionItem"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "コレクションが存在しない、またはアクセス権の無いコレクションの場合 (ユーザーがチェックイン履歴を公開していない、またはコレクションが非公開設定)"
+          }
+        }
+      },
+      "post": {
+        "summary": "コレクションにアイテムを追加",
+        "description": "指定したコレクションに新しいアイテムを追加します。",
+        "tags": [
+          "collection"
+        ],
+        "parameters": [
+          {
+            "name": "collection_id",
+            "in": "path",
+            "required": true,
+            "description": "コレクションID",
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCollectionItem"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CollectionItem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "バリデーションエラー",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "status",
+                    "error"
+                  ],
+                  "properties": {
+                    "status": {
+                      "type": "number",
+                      "description": "HTTPステータスコードと同じ値",
+                      "example": 422
+                    },
+                    "error": {
+                      "$ref": "#/components/schemas/ValidationError"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/collections/{collection_id}/items/{collection_item_id}": {
+      "patch": {
+        "summary": "コレクションアイテムの更新",
+        "description": "指定したIDのコレクションアイテムの情報を更新します。\nリクエスト内の項目は全て省略可能であり、更新したい項目のみを送信することができます。\n",
+        "tags": [
+          "collection"
+        ],
+        "parameters": [
+          {
+            "name": "collection_id",
+            "in": "path",
+            "required": true,
+            "description": "コレクションID",
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "collection_item_id",
+            "in": "path",
+            "required": true,
+            "description": "コレクションアイテムID",
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateCollectionItem"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CollectionItem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "自分以外が作成したコレクションに対して操作を試みた場合"
+          },
+          "404": {
+            "description": "存在しない場合"
+          },
+          "422": {
+            "description": "バリデーションエラー",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "status",
+                    "error"
+                  ],
+                  "properties": {
+                    "status": {
+                      "type": "number",
+                      "description": "HTTPステータスコードと同じ値",
+                      "example": 422
+                    },
+                    "error": {
+                      "$ref": "#/components/schemas/ValidationError"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "コレクションからアイテムを削除",
+        "description": "コレクションから、指定したIDのコレクションアイテムを削除します。\n\n### 注意\n実装上の都合で、Checkin APIと異なり**応答がべき等ではありません**。既に削除されている場合は404エラーになりますので、ご注意ください。\n",
+        "tags": [
+          "collection"
+        ],
+        "parameters": [
+          {
+            "name": "collection_id",
+            "in": "path",
+            "required": true,
+            "description": "コレクションID",
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "collection_item_id",
+            "in": "path",
+            "required": true,
+            "description": "コレクションアイテムID",
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "成功"
+          },
+          "403": {
+            "description": "自分以外が作成したコレクションに対して操作を試みた場合"
+          },
+          "404": {
+            "description": "存在しない場合"
+          }
+        }
+      }
+    },
+    "/v1/timelines/public": {
+      "get": {
+        "summary": "お惣菜コーナーのチェックイン一覧の取得",
+        "deprecated": true,
+        "description": "このAPIは廃止されました。代替はありません。\n",
+        "tags": [
+          "timelines"
+        ],
+        "responses": {
+          "410": {
+            "description": "エラー",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "number",
+                      "example": 410
+                    },
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "message": {
+                          "type": "string",
+                          "example": "this endpoint is no longer available."
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/search/checkins": {
+      "get": {
+        "summary": "チェックインの検索",
+        "description": "指定した条件でチェックインを検索します。すべての公開チェックインとログインユーザーの全チェックインが対象となります。\n\n### 検索クエリについて\n検索キーワードには、詳細条件として以下のクエリを指定することができます。\n\n* ユーザー名 (完全一致)\n  * `user:ユーザー名`\n* チェックイン日付\n  * 完全一致: `date:2020-07-21`\n  * 指定日以前: `until:2020-07-21`\n  * 指定日以降: `since:2020-07-21`\n* オカズリンク\n  * 部分一致: `url:URL` または `link:URL`\n  * 何でもいいからリンクが書かれている: `has:url` または `has:link`\n* タグ\n  * 完全一致: `tag:タグ名`\n  * 部分一致: `タグ名` (頭にtag:を付けない、今まで通りの書き方)\n* ノート\n  * 部分一致: `note:ノートの内容`\n  * 何でもいいからノートが書かれている: `has:note`\n* 「より過激なオカズ」チェックの有無\n  * `is:sensitive`\n\n複数の条件で検索したい場合 (AND検索) 、スペースで区切って入力してください。\\\nなお、OR検索には対応していません。\n\nノートの検索条件に半角スペースを含めたい場合、条件区切りにならないようダブルクォーテーションで囲ってください。\\\n例) `note:\"で か い ち ち\"`\n\nすべての条件はマイナス検索をサポートしています。条件の先頭にマイナス符号を付けてください。\\\n例) 3次元以外を検索する: `-tag:3次元`\n",
+        "tags": [
+          "search"
+        ],
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "description": "検索キーワード (クエリ)",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "description": "ページ番号",
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "description": "1ページあたりのアイテム数",
+            "schema": {
+              "type": "integer",
+              "default": 20,
+              "minimum": 10,
+              "maximum": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "headers": {
+              "X-Total-Count": {
+                "description": "全体のアイテム数",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Checkin"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/search/collections": {
+      "get": {
+        "summary": "コレクションの検索",
+        "description": "指定した条件でコレクション内に登録されたオカズを検索します。すべての公開コレクションとログインユーザーの全コレクションが対象となります。\n\n### 検索クエリについて\n検索キーワードには、詳細条件として以下のクエリを指定することができます。\n\n* ユーザー名 (完全一致)\n  * `user:ユーザー名`\n* オカズリンク\n  * 部分一致: `url:URL` または `link:URL`\n* タグ\n  * 完全一致: `tag:タグ名`\n  * 部分一致: `タグ名` (頭にtag:を付けない、今まで通りの書き方)\n* ノート\n  * 部分一致: `note:ノートの内容`\n  * 何でもいいからノートが書かれている: `has:note`\n\n複数の条件で検索したい場合 (AND検索) 、スペースで区切って入力してください。\\\nなお、OR検索には対応していません。\n\nノートの検索条件に半角スペースを含めたい場合、条件区切りにならないようダブルクォーテーションで囲ってください。\\\n例) `note:\"で か い ち ち\"`\n\nすべての条件はマイナス検索をサポートしています。条件の先頭にマイナス符号を付けてください。\\\n例) 3次元以外を検索する: `-tag:3次元`\n",
+        "tags": [
+          "search"
+        ],
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "description": "検索キーワード (クエリ)",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "description": "ページ番号",
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "description": "1ページあたりのアイテム数",
+            "schema": {
+              "type": "integer",
+              "default": 20,
+              "minimum": 10,
+              "maximum": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "headers": {
+              "X-Total-Count": {
+                "description": "全体のアイテム数",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CollectionItem"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "User": {
+        "type": "object",
+        "description": "ユーザーデータ",
+        "required": [
+          "name",
+          "display_name",
+          "is_protected",
+          "private_likes"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 15,
+            "description": "ユーザー名 (多くの画面では先頭に @ を付けて表示されますが、ここでは含まれません)"
+          },
+          "display_name": {
+            "type": "string",
+            "maxLength": 20,
+            "description": "名前"
+          },
+          "is_protected": {
+            "type": "boolean",
+            "description": "チェックイン履歴の非公開フラグ"
+          },
+          "private_likes": {
+            "type": "boolean",
+            "description": "いいね一覧の非公開フラグ"
+          },
+          "bio": {
+            "type": "string",
+            "maxLength": 160,
+            "description": "自己紹介文"
+          },
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "description": "プロフィール上に掲載するURL"
+          },
+          "checkin_summary": {
+            "$ref": "#/components/schemas/CheckinSummary"
+          }
+        }
+      },
+      "CheckinSummary": {
+        "type": "object",
+        "description": "チェックインの概況",
+        "required": [
+          "current_session_elapsed",
+          "total_checkins",
+          "total_times",
+          "average_interval",
+          "median_interval",
+          "longest_interval",
+          "shortest_interval"
+        ],
+        "properties": {
+          "current_session_elapsed": {
+            "type": "integer",
+            "format": "int64",
+            "description": "最後のチェックインからの経過秒数 (現在のセッション)"
+          },
+          "total_checkins": {
+            "type": "integer",
+            "format": "int64",
+            "description": "合計チェックイン回数"
+          },
+          "total_times": {
+            "type": "integer",
+            "format": "int64",
+            "description": "合計時間 (秒)"
+          },
+          "average_interval": {
+            "type": "integer",
+            "format": "int64",
+            "description": "チェックイン間隔の平均値 (秒)"
+          },
+          "median_interval": {
+            "type": "integer",
+            "format": "int64",
+            "description": "チェックイン間隔の中央値 (秒)"
+          },
+          "longest_interval": {
+            "type": "integer",
+            "format": "int64",
+            "description": "チェックイン間隔の最大値 (秒)"
+          },
+          "shortest_interval": {
+            "type": "integer",
+            "format": "int64",
+            "description": "チェックイン間隔の最小値 (秒)"
+          }
+        }
+      },
+      "Checkin": {
+        "type": "object",
+        "description": "チェックインデータ",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64",
+            "description": "チェックインID"
+          },
+          "checked_in_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "チェックイン日時",
+            "example": "2020-07-21T19:19:19+0900"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 255
+            },
+            "description": "タグ",
+            "example": [
+              "Example",
+              "Example_2"
+            ]
+          },
+          "link": {
+            "type": "string",
+            "maxLength": 2000,
+            "description": "オカズリンク (http, https)",
+            "example": "http://example.com"
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 500,
+            "description": "ノート",
+            "example": "すごく出た"
+          },
+          "is_private": {
+            "type": "boolean",
+            "default": false,
+            "description": "非公開チェックインとして設定"
+          },
+          "is_too_sensitive": {
+            "type": "boolean",
+            "default": false,
+            "description": "チェックイン対象のオカズをより過激なオカズとして設定"
+          },
+          "discard_elapsed_time": {
+            "type": "boolean",
+            "default": false,
+            "description": "前回チェックインからの経過時間を記録しない"
+          },
+          "source": {
+            "type": "string",
+            "description": "チェックインの登録元",
+            "enum": [
+              "web",
+              "csv",
+              "webhook",
+              "api"
+            ],
+            "example": "api"
+          },
+          "user": {
+            "$ref": "#/components/schemas/User"
+          }
+        }
+      },
+      "UpdateCheckin": {
+        "type": "object",
+        "properties": {
+          "checked_in_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "チェックイン日時",
+            "example": "2020-07-21T19:19:19+0900"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 255
+            },
+            "description": "タグ",
+            "example": [
+              "Example",
+              "Example_2"
+            ]
+          },
+          "link": {
+            "type": "string",
+            "maxLength": 2000,
+            "description": "オカズリンク (http, https)",
+            "example": "http://example.com"
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 500,
+            "description": "ノート",
+            "example": "すごく出た"
+          },
+          "is_private": {
+            "type": "boolean",
+            "description": "非公開チェックインとして設定"
+          },
+          "is_too_sensitive": {
+            "type": "boolean",
+            "description": "チェックイン対象のオカズをより過激なオカズとして設定"
+          },
+          "discard_elapsed_time": {
+            "type": "boolean",
+            "description": "前回チェックインからの経過時間を記録しない"
+          }
+        }
+      },
+      "CreateCheckin": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/UpdateCheckin"
+          },
+          {
+            "properties": {
+              "is_private": {
+                "default": false
+              },
+              "is_too_sensitive": {
+                "default": false
+              },
+              "discard_elapsed_time": {
+                "default": false
+              }
+            }
+          }
+        ]
+      },
+      "Collection": {
+        "type": "object",
+        "description": "コレクション",
+        "required": [
+          "id",
+          "user_name",
+          "title",
+          "is_private"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64",
+            "description": "コレクションID"
+          },
+          "title": {
+            "type": "string",
+            "description": "コレクションのタイトル",
+            "example": "My collection"
+          },
+          "is_private": {
+            "type": "boolean",
+            "description": "非公開コレクションとして設定",
+            "example": false
+          }
+        }
+      },
+      "UpdateCollection": {
+        "type": "object",
+        "required": [
+          "title",
+          "is_private"
+        ],
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxLength": 255,
+            "description": "コレクションのタイトル",
+            "example": "My collection"
+          },
+          "is_private": {
+            "type": "boolean",
+            "description": "非公開コレクションとして設定",
+            "example": false
+          }
+        }
+      },
+      "CreateCollection": {
+        "$ref": "#/components/schemas/UpdateCollection"
+      },
+      "CollectionItem": {
+        "type": "object",
+        "required": [
+          "id",
+          "collection_id",
+          "link"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64",
+            "description": "コレクションアイテムID"
+          },
+          "collection_id": {
+            "type": "integer",
+            "format": "int64",
+            "description": "コレクションID"
+          },
+          "link": {
+            "type": "string",
+            "maxLength": 2000,
+            "description": "オカズリンク (http, https)",
+            "example": "http://example.com"
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 500,
+            "description": "ノート",
+            "example": "すごく抜ける"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 255
+            },
+            "description": "タグ",
+            "example": [
+              "Example",
+              "Example_2"
+            ]
+          }
+        }
+      },
+      "UpdateCollectionItem": {
+        "type": "object",
+        "properties": {
+          "note": {
+            "type": "string",
+            "maxLength": 500,
+            "description": "ノート",
+            "example": "すごく抜ける"
+          },
+          "tags": {
+            "type": "array",
+            "maxItems": 40,
+            "items": {
+              "type": "string",
+              "maxLength": 255
+            },
+            "description": "タグ",
+            "example": [
+              "Example",
+              "Example_2"
+            ]
+          }
+        }
+      },
+      "CreateCollectionItem": {
+        "allOf": [
+          {
+            "required": [
+              "link"
+            ],
+            "properties": {
+              "link": {
+                "type": "string",
+                "maxLength": 2000,
+                "description": "オカズリンク (http, https)",
+                "example": "http://example.com"
+              }
+            }
+          },
+          {
+            "$ref": "#/components/schemas/UpdateCollectionItem"
+          }
+        ]
+      },
+      "DailyCheckinSummary": {
+        "type": "object",
+        "required": [
+          "date",
+          "count"
+        ],
+        "properties": {
+          "date": {
+            "type": "string",
+            "format": "date",
+            "description": "日付",
+            "example": "2020-07-21"
+          },
+          "count": {
+            "type": "integer",
+            "description": "チェックイン回数"
+          }
+        }
+      },
+      "HourlyCheckinSummary": {
+        "type": "object",
+        "required": [
+          "hour",
+          "count"
+        ],
+        "properties": {
+          "hour": {
+            "type": "integer",
+            "description": "時間 (0時〜23時)",
+            "minimum": 0,
+            "maximum": 23
+          },
+          "count": {
+            "type": "integer",
+            "description": "チェックイン回数"
+          }
+        }
+      },
+      "MostlyUsedCheckinTag": {
+        "type": "object",
+        "required": [
+          "name",
+          "count"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 255,
+            "description": "タグ"
+          },
+          "count": {
+            "type": "integer",
+            "description": "使用回数"
+          }
+        }
+      },
+      "MostlyUsedLink": {
+        "type": "object",
+        "required": [
+          "name",
+          "count"
+        ],
+        "properties": {
+          "link": {
+            "type": "string",
+            "description": "オカズリンク",
+            "example": "http://example.com"
+          },
+          "count": {
+            "type": "integer",
+            "description": "使用回数"
+          }
+        }
+      },
+      "ValidationError": {
+        "type": "object",
+        "description": "バリデーションエラー",
+        "required": [
+          "message"
+        ],
+        "properties": {
+          "message": {
+            "type": "string",
+            "description": "エラーの概要",
+            "example": "The given data was invalid."
+          },
+          "violations": {
+            "type": "array",
+            "description": "エラーが発生した各フィールドについての情報",
+            "items": {
+              "type": "object",
+              "required": [
+                "message",
+                "field"
+              ],
+              "properties": {
+                "message": {
+                  "type": "string",
+                  "description": "エラーの概要"
+                },
+                "field": {
+                  "type": "string",
+                  "description": "エラーが発生したフィールド"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

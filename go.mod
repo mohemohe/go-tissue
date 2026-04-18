@@ -1,8 +1,5 @@
 module github.com/mohemohe/go-tissue
 
-go 1.14
+go 1.21
 
-require (
-	github.com/PuerkitoBio/goquery v1.8.0
-	github.com/joho/godotenv v1.5.0 // indirect
-)
+require github.com/joho/godotenv v1.5.1
